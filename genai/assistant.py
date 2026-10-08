@@ -62,6 +62,8 @@ Rules:
   which tool produced it, e.g. "(via get_route_stats)".
 - If a tool returns an error (e.g. route/shipment not found), tell the
   user plainly rather than guessing.
+- For "which routes are most/least delayed" style questions, use
+  get_top_delayed_routes rather than guessing or listing routes from memory.
 - Be concise.
 """
 
@@ -188,6 +190,7 @@ class Assistant:
 
         shipment_match = re.search(r"SHP-\d+", q, re.IGNORECASE)
         port_pair_match = re.search(r"\b([A-Z]{5})\b.*?\b([A-Z]{5})\b", q)
+        top_routes_match = re.search(r"highest\s+(average\s+)?delay|most\s+delayed|worst\s+routes?", q, re.IGNORECASE)
 
         if shipment_match:
             shipment_id = shipment_match.group(0).upper()
@@ -201,6 +204,18 @@ class Assistant:
                     f"(probability={result['delay_risk_probability']}, "
                     f"model={result['model_name']}) (via predict_delay)"
                 )
+        elif top_routes_match:
+            result = self.tools.call("get_top_delayed_routes", {"limit": 5, "order": "desc"})
+            tools_called.append({"name": "get_top_delayed_routes", "arguments": {"limit": 5, "order": "desc"}, "result": result})
+            routes = result.get("routes", [])
+            if not routes:
+                answer = "No route data available (via get_top_delayed_routes)."
+            else:
+                lines = [
+                    f"{r['route_key']}: avg delay {r['avg_delay_hours']:.1f}h over {r['shipment_count']} shipments"
+                    for r in routes
+                ]
+                answer = "Highest average delay routes (via get_top_delayed_routes):\n" + "\n".join(lines)
         elif port_pair_match:
             origin, destination = port_pair_match.group(1), port_pair_match.group(2)
             result = self.tools.call("get_route_stats", {"origin": origin, "destination": destination})

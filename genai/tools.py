@@ -53,6 +53,30 @@ TOOL_DEFINITIONS = [
     {
         "type": "function",
         "function": {
+            "name": "get_top_delayed_routes",
+            "description": (
+                "Rank routes by average delay hours across all available history "
+                "(there is no time-window field in the data, so this is not a true "
+                "rolling quarter). Use this for 'which routes have the highest/"
+                "lowest average delay' style questions."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "default": 5},
+                    "order": {
+                        "type": "string",
+                        "enum": ["desc", "asc"],
+                        "default": "desc",
+                        "description": "desc = worst routes first, asc = best routes first",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "predict_delay",
             "description": "Predict the delay risk for an existing shipment id by calling the ML model endpoint.",
             "parameters": {
@@ -96,6 +120,11 @@ class Tools:
             return {"error": resp.json().get("detail", "route not found")}
         resp.raise_for_status()
         return resp.json()
+
+    def get_top_delayed_routes(self, limit: int = 5, order: str = "desc") -> dict[str, Any]:
+        resp = self.client.get("/routes/top-delayed", params={"limit": limit, "order": order})
+        resp.raise_for_status()
+        return {"routes": resp.json()}
 
     def predict_delay(self, shipment_id: str) -> dict[str, Any]:
         resp = self.client.post("/predict-delay", json={"shipment_id": shipment_id})

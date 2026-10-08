@@ -76,6 +76,21 @@ def test_route_stats_unknown_route_returns_404():
     assert resp.status_code == 404
 
 
+def test_top_delayed_routes_returns_sorted_list():
+    resp = client.get("/routes/top-delayed?limit=5")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) <= 5
+    delays = [r["avg_delay_hours"] for r in body]
+    assert delays == sorted(delays, reverse=True)
+
+
+def test_top_delayed_routes_respects_min_shipments():
+    resp = client.get("/routes/top-delayed?limit=10&min_shipments=1000000")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_data_quality_report_endpoint():
     resp = client.get("/data-quality/report")
     assert resp.status_code == 200

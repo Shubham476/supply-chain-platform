@@ -41,6 +41,7 @@ Try the rest:
 curl "localhost:8000/shipments?limit=3"
 curl localhost:8000/shipments/SHP-00010
 curl localhost:8000/routes/NLRTM/PKKAR/stats
+curl "localhost:8000/routes/top-delayed?limit=5"
 curl localhost:8000/data-quality/report
 curl -X POST localhost:8000/predict-delay -H "Content-Type: application/json" \
   -d '{"shipment_id":"SHP-00010"}'
@@ -116,7 +117,7 @@ flowchart TB
 
     subgraph GenAI["genai/ CLI assistant"]
         LLM["OpenAI (tool calling)\nor offline intent router"]
-        TOOLS["query_shipments\nget_route_stats\npredict_delay"]
+        TOOLS["query_shipments\nget_route_stats\nget_top_delayed_routes\npredict_delay"]
     end
 
     P --> DQC
@@ -384,9 +385,15 @@ without network access (rough cost when online: **$0.0005–$0.002 per
 query** — a few hundred prompt tokens plus 1-2 tool round-trips at
 gpt-4o-mini's $0.15/$0.60 per-million-token pricing).
 
+Verified against the real OpenAI API (not just the offline fallback) with all
+three example questions from the brief, plus the off-domain and
+unknown-shipment-id guardrail cases — see `genai/logs/assistant_log.jsonl`
+for the full prompt/tool-call/response trace of each run.
+
 **Tools** (`genai/tools.py`, OpenAI function-calling schema):
 - `query_shipments(origin_port?, destination_port?, status?, limit?)` — reads the curated data product via the running API's `/shipments`.
 - `get_route_stats(origin, destination)` — calls `/routes/{origin}/{destination}/stats`.
+- `get_top_delayed_routes(limit?, order?)` — calls `/routes/top-delayed`; ranks routes by average delay across all available history (no time-window field exists in the data, so "this quarter" in the example question is answered over all history — documented assumption). Added after noticing the real LLM correctly *refused to guess* on "which routes have had the highest average delay" when no tool existed for it, rather than hallucinating a ranking — exactly the guardrail behaviour we want, but it meant the tool was missing, not just the guardrail working.
 - `predict_delay(shipment_id)` — calls `/predict-delay`.
 
 **Guardrails implemented**
