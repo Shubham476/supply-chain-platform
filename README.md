@@ -279,14 +279,9 @@ migration — only "run the previous code version against the same raw data."
 
 **Status: implemented (Option A).** See `.github/workflows/ci.yml`.
 
-[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
+[![CI](https://github.com/Shubham476/supply-chain-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Shubham476/supply-chain-platform/actions/workflows/ci.yml)
 
-> Replace `<owner>/<repo>` once this repo is pushed to GitHub — the badge
-> only renders against a real remote. This was built and validated on an
-> office machine with no outbound push access, so the workflow's stages
-> (lint, unit tests, `make build`, integration tests, `docker build` + smoke
-> test) were each run locally exactly as GitHub Actions would run them, but
-> the workflow has not yet executed inside Actions itself.
+> [run #1] https://github.com/Shubham476/supply-chain-platform/actions/runs/37791620085
 
 **Pipeline stages** (`.github/workflows/ci.yml`, two jobs: `test` then `docker-build`)
 1. **Install** — `pip install -r requirements.txt` (cached by hash of `requirements.txt`).
