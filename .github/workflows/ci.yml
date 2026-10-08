@@ -1,0 +1,71 @@
+name: CI
+
+# Option A from the README's CI/CD section: a working pipeline rather than
+# just a documented plan. Runs on every push and PR against main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Run unit tests
+        run: pytest tests/unit -v
+
+      - name: Build data artefacts (DQ report -> pipeline -> model)
+        run: make build
+
+      - name: Run integration tests
+        run: pytest tests/integration -v
+
+      - name: Upload DQ report and model metrics as build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-artefacts
+          path: |
+            reports/dq_report.json
+            ml/metrics.json
+          retention-days: 14
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t supply-chain-api:${{ github.sha }} .
+
+      - name: Smoke-test the image
+        run: |
+          docker run -d --name smoke-api -p 8000:8000 supply-chain-api:${{ github.sha }}
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8000/health; then
+              echo "API is up"
+              exit 0
+            fi
+            echo "Waiting for API... ($i)"
+            sleep 2
+          done
+          echo "API did not become healthy in time"
+          docker logs smoke-api
+          exit 1

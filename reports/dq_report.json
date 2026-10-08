@@ -1,0 +1,248 @@
+{
+  "generated_at": "2026-10-08T11:10:47.146699+00:00",
+  "input_dir": "/Users/shubham.patil/Downloads/maerks_assignment/supply-chain-platform/data/raw",
+  "datasets": {
+    "ports.csv": {
+      "rows": 25,
+      "columns": [
+        "port_code",
+        "port_name",
+        "country",
+        "region",
+        "timezone",
+        "avg_congestion_score"
+      ]
+    },
+    "shipments.csv": {
+      "rows": 5028,
+      "columns": [
+        "shipment_id",
+        "customer_id",
+        "origin_port",
+        "destination_port",
+        "vessel_id",
+        "booking_date",
+        "planned_departure",
+        "actual_departure",
+        "planned_arrival",
+        "actual_arrival",
+        "container_count",
+        "cargo_type",
+        "weight_tons",
+        "status"
+      ]
+    }
+  },
+  "summary": {
+    "total_checks": 13,
+    "critical": 5,
+    "warning": 6,
+    "info": 2
+  },
+  "issues": [
+    {
+      "check_name": "shipments.invalid_port_code",
+      "description": "origin_port or destination_port is not a known port code (sentinel/placeholder values such as ZZZZZ, XXTST, UNKNW found).",
+      "severity": "critical",
+      "rows_affected": 95,
+      "total_rows": 5028,
+      "pct_affected": 1.889,
+      "recommended_action": "Quarantine -- cannot compute route stats without a valid origin/destination. Excluded from the curated layer.",
+      "example_row_ids": [
+        "SHP-03125",
+        "SHP-02763",
+        "SHP-00679",
+        "SHP-02125",
+        "SHP-01100"
+      ]
+    },
+    {
+      "check_name": "shipments.missing_actual_arrival_unexplained",
+      "description": "actual_arrival is null for a shipment whose status is DELIVERED/DELAYED (i.e. not cancelled), which is contradictory.",
+      "severity": "critical",
+      "rows_affected": 82,
+      "total_rows": 5028,
+      "pct_affected": 1.631,
+      "recommended_action": "Flag as data-integrity conflict; exclude from on-time/delay aggregates until resolved, but keep the row (it is still a real booking).",
+      "example_row_ids": [
+        "SHP-00477",
+        "SHP-04876",
+        "SHP-04899",
+        "SHP-03523",
+        "SHP-01135"
+      ]
+    },
+    {
+      "check_name": "shipments.duplicate_shipment_id",
+      "description": "shipment_id appears more than once. Some are exact duplicate rows (safe to drop); others have the same id with conflicting values (e.g. different weight_tons), which indicates a re-booking or upstream key collision.",
+      "severity": "critical",
+      "rows_affected": 56,
+      "total_rows": 5028,
+      "pct_affected": 1.114,
+      "recommended_action": "Drop exact duplicate rows. For id collisions with conflicting values, quarantine both rows for manual review rather than guessing which is correct.",
+      "example_row_ids": [
+        "SHP-00010",
+        "SHP-02149",
+        "SHP-03647",
+        "SHP-00275",
+        "SHP-03737"
+      ]
+    },
+    {
+      "check_name": "shipments.negative_weight_tons",
+      "description": "weight_tons is negative, which is physically impossible.",
+      "severity": "critical",
+      "rows_affected": 36,
+      "total_rows": 5028,
+      "pct_affected": 0.716,
+      "recommended_action": "Fix: take absolute value (most likely a sign-flip bug upstream) and flag the row as corrected.",
+      "example_row_ids": [
+        "SHP-00617",
+        "SHP-02149",
+        "SHP-03447",
+        "SHP-03198",
+        "SHP-02112"
+      ]
+    },
+    {
+      "check_name": "shipments.zero_container_count",
+      "description": "container_count is 0, which is not a valid booking.",
+      "severity": "critical",
+      "rows_affected": 23,
+      "total_rows": 5028,
+      "pct_affected": 0.457,
+      "recommended_action": "Quarantine for manual review; excluded from curated layer.",
+      "example_row_ids": [
+        "SHP-02291",
+        "SHP-04667",
+        "SHP-00868",
+        "SHP-03058",
+        "SHP-00766"
+      ]
+    },
+    {
+      "check_name": "shipments.inconsistent_cargo_type_casing",
+      "description": "cargo_type has casing/whitespace variants of the same value (e.g. 'FURNITURE', 'electronics', ' Chemicals') that should collapse to one canonical label.",
+      "severity": "warning",
+      "rows_affected": 261,
+      "total_rows": 5028,
+      "pct_affected": 5.191,
+      "recommended_action": "Fix: normalise to Title Case canonical set at ingestion time.",
+      "example_row_ids": [
+        "SHP-04150",
+        "SHP-00564",
+        "SHP-00957",
+        "SHP-03872",
+        "SHP-00365"
+      ]
+    },
+    {
+      "check_name": "shipments.inconsistent_status_labels",
+      "description": "status uses non-canonical labels/casing: 'COMPLETED', 'Complete', 'delivered' instead of the canonical DELIVERED/DELAYED/CANCELLED.",
+      "severity": "warning",
+      "rows_affected": 92,
+      "total_rows": 5028,
+      "pct_affected": 1.83,
+      "recommended_action": "Fix: map COMPLETED/Complete -> DELIVERED, uppercase everything, done once in the curated layer.",
+      "example_row_ids": [
+        "SHP-04428",
+        "SHP-04491",
+        "SHP-03880",
+        "SHP-00906",
+        "SHP-02868"
+      ]
+    },
+    {
+      "check_name": "shipments.missing_status",
+      "description": "status is null.",
+      "severity": "warning",
+      "rows_affected": 54,
+      "total_rows": 5028,
+      "pct_affected": 1.074,
+      "recommended_action": "Flag + derive: infer DELIVERED/DELAYED from actual_arrival vs planned_arrival when dates are present, else quarantine.",
+      "example_row_ids": [
+        "SHP-00477",
+        "SHP-04876",
+        "SHP-04899",
+        "SHP-03523",
+        "SHP-01135"
+      ]
+    },
+    {
+      "check_name": "shipments.container_count_outlier",
+      "description": "container_count > 500, far outside the observed distribution (median ~21, p99 ~70).",
+      "severity": "warning",
+      "rows_affected": 17,
+      "total_rows": 5028,
+      "pct_affected": 0.338,
+      "recommended_action": "Flag as statistical outlier; keep the row but exclude from features that are sensitive to scale until reviewed.",
+      "example_row_ids": [
+        "SHP-04251",
+        "SHP-03990",
+        "SHP-04673",
+        "SHP-03679",
+        "SHP-04607"
+      ]
+    },
+    {
+      "check_name": "shipments.exact_duplicate_rows",
+      "description": "Fully identical rows (every column matches another row).",
+      "severity": "warning",
+      "rows_affected": 8,
+      "total_rows": 5028,
+      "pct_affected": 0.159,
+      "recommended_action": "Drop, keeping the first occurrence.",
+      "example_row_ids": [
+        "SHP-03324",
+        "SHP-00077",
+        "SHP-02142",
+        "SHP-02290",
+        "SHP-02978"
+      ]
+    },
+    {
+      "check_name": "ports.missing_country",
+      "description": "Port reference rows with a null country field.",
+      "severity": "warning",
+      "rows_affected": 1,
+      "total_rows": 25,
+      "pct_affected": 4.0,
+      "recommended_action": "Flag and backfill manually -- reference data is small enough to fix by hand. Does not block ingestion since country is not used in any derived calculation yet.",
+      "example_row_ids": [
+        "BEANR"
+      ]
+    },
+    {
+      "check_name": "shipments.missing_weight_tons",
+      "description": "weight_tons is null.",
+      "severity": "info",
+      "rows_affected": 73,
+      "total_rows": 5028,
+      "pct_affected": 1.452,
+      "recommended_action": "Flag; impute with per-cargo-type median in the curated layer.",
+      "example_row_ids": [
+        "SHP-01495",
+        "SHP-03784",
+        "SHP-03225",
+        "SHP-04081",
+        "SHP-04525"
+      ]
+    },
+    {
+      "check_name": "shipments.missing_cargo_type",
+      "description": "cargo_type is null.",
+      "severity": "info",
+      "rows_affected": 15,
+      "total_rows": 5028,
+      "pct_affected": 0.298,
+      "recommended_action": "Fix: impute as 'Unknown'. Not used as a leakage-risk field.",
+      "example_row_ids": [
+        "SHP-03647",
+        "SHP-00275",
+        "SHP-03887",
+        "SHP-03280",
+        "SHP-04906"
+      ]
+    }
+  ]
+}

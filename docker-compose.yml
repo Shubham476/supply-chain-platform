@@ -1,0 +1,54 @@
+version: "3.9"
+
+# `docker compose up` brings up the full stack with a single command:
+#  1. data-init builds the DQ report, the curated DuckDB warehouse, and
+#     trains/saves the ML model artefact (idempotent -- safe to re-run).
+#  2. api starts only after data-init exits successfully, and serves the
+#     endpoints documented in the README.
+#
+# Everything is written to ./data, ./reports, and ./ml on the host via
+# bind mounts, so artefacts survive `docker compose down` and are easy to
+# inspect without shelling into the container.
+
+services:
+  data-init:
+    build: .
+    command: >
+      sh -c "
+        python dq/dq_check.py --input data/raw --output reports/dq_report.json &&
+        python pipeline/build_pipeline.py --raw data/raw --db data/warehouse.duckdb &&
+        python ml/train_model.py --db data/warehouse.duckdb --out ml/model.joblib --metrics-out ml/metrics.json
+      "
+    volumes:
+      - ./data:/srv/app/data
+      - ./reports:/srv/app/reports
+      - ./ml:/srv/app/ml
+
+  api:
+    build: .
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/srv/app/data
+      - ./reports:/srv/app/reports
+      - ./ml:/srv/app/ml
+    restart: unless-stopped
+
+  # Optional: run the GenAI CLI assistant against the running API, e.g.
+  #   docker compose run --rm genai "What is the delay risk for shipment SHP-00010?"
+  genai:
+    build: .
+    depends_on:
+      - api
+    environment:
+      - API_BASE_URL=http://api:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./genai/logs:/srv/app/genai/logs
+    entrypoint: ["python", "genai/assistant.py", "--api-base-url", "http://api:8000"]
+    profiles: ["genai"]

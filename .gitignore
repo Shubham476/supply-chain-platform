@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
+.env
+data/warehouse.duckdb
+data/curated/*
+genai/logs/*.jsonl
+.DS_Store
+*.log
